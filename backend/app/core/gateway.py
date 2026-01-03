@@ -1,9 +1,12 @@
 import asyncio
 import struct
 import time
+import logging
 from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.server import StartAsyncTcpServer
 from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
+
+logger = logging.getLogger(__name__)
 
 class ModbusGateway:
     def __init__(self):
@@ -12,6 +15,7 @@ class ModbusGateway:
         self.devices = []
         self.device_data = {}
         self.running = False
+        logger.info("ModbusGateway initialized")
 
     def decode_float32(self, regs):
         if len(regs) < 2: return None
@@ -23,7 +27,7 @@ class ModbusGateway:
 
     async def poll_pm(self, dev):
         try:
-            print(f"[PM] Connecting to {dev.name} at {dev.ip}:{dev.port}")
+            logger.debug(f"Polling PM {dev.name} at {dev.ip}:{dev.port}")
             client = AsyncModbusTcpClient(dev.ip, port=dev.port, timeout=5, retries=1)
             await client.connect()
             
@@ -38,15 +42,15 @@ class ModbusGateway:
                         data[name] = round(val, 2)
             
             self.device_data[dev.name] = {"values": data, "timestamp": time.time(), "status": "online"}
-            print(f"[PM] {dev.name} OK - {len(data)} params")
+            logger.debug(f"PM {dev.name} OK - {len(data)} params")
             client.close()
         except Exception as e:
             self.device_data[dev.name] = {"error": str(e), "timestamp": time.time(), "status": "offline"}
-            print(f"[PM] {dev.name} ERROR: {e}")
+            logger.error(f"PM {dev.name} error: {e}")
 
     async def poll_scale(self, dev):
         try:
-            print(f"[SCALE] Connecting to {dev.name} at {dev.ip}:{dev.port}")
+            logger.debug(f"Polling Scale {dev.name} at {dev.ip}:{dev.port}")
             client = AsyncModbusTcpClient(dev.ip, port=dev.port, timeout=5, retries=1)
             await client.connect()
             
@@ -55,17 +59,17 @@ class ModbusGateway:
                 self.context[0x03].setValues(3, dev.offset, rr.registers)
                 self.device_data[dev.name] = {"values": {"weight": rr.registers[0]},
                                               "timestamp": time.time(), "status": "online"}
-                print(f"[SCALE] {dev.name} OK - weight={rr.registers[0]}")
+                logger.debug(f"Scale {dev.name} OK - weight={rr.registers[0]}")
             else:
                 raise Exception(f"Read error: {rr}")
             client.close()
         except Exception as e:
             self.device_data[dev.name] = {"error": str(e), "timestamp": time.time(), "status": "offline"}
-            print(f"[SCALE] {dev.name} ERROR: {e}")
+            logger.error(f"Scale {dev.name} error: {e}")
 
     async def poll_oee(self, dev):
         try:
-            print(f"[OEE] Connecting to {dev.name} at {dev.ip}:{dev.port}")
+            logger.debug(f"Polling OEE {dev.name} at {dev.ip}:{dev.port}")
             client = AsyncModbusTcpClient(dev.ip, port=dev.port, timeout=5, retries=1)
             await client.connect()
             
@@ -79,32 +83,40 @@ class ModbusGateway:
                     "new_output_flag": rr.registers[2],
                     "start_of_production": rr.registers[3]
                 }, "timestamp": time.time(), "status": "online"}
-                print(f"[OEE] {dev.name} OK - status={status}, hsc={rr.registers[1]}, output={rr.registers[2]}, sop={rr.registers[3]}")
+                logger.debug(f"OEE {dev.name} OK - status={status}")
             else:
                 raise Exception(f"Read error: {rr}")
             client.close()
         except Exception as e:
             self.device_data[dev.name] = {"error": str(e), "timestamp": time.time(), "status": "offline"}
-            print(f"[OEE] {dev.name} ERROR: {e}")
+            logger.error(f"OEE {dev.name} error: {e}")
 
     async def poll_all(self):
-        print(f"[GATEWAY] Starting polling for {len(self.devices)} devices")
+        logger.info(f"Starting polling for {len(self.devices)} devices")
         while self.running:
-            tasks = []
-            for d in self.devices:
-                if d.type == "pm":
-                    tasks.append(self.poll_pm(d))
-                elif d.type == "scale":
-                    tasks.append(self.poll_scale(d))
-                else:  # oee
-                    tasks.append(self.poll_oee(d))
-            await asyncio.gather(*tasks, return_exceptions=True)
-            await asyncio.sleep(1.0)
+            try:
+                tasks = []
+                for d in self.devices:
+                    if d.type == "pm":
+                        tasks.append(self.poll_pm(d))
+                    elif d.type == "scale":
+                        tasks.append(self.poll_scale(d))
+                    else:
+                        tasks.append(self.poll_oee(d))
+                await asyncio.gather(*tasks, return_exceptions=True)
+                await asyncio.sleep(1.0)
+            except Exception as e:
+                logger.error(f"Polling error: {e}", exc_info=True)
+                await asyncio.sleep(5)
 
     async def start_server(self):
-        self.running = True
-        print(f"[GATEWAY] Starting Modbus server on port 502")
-        asyncio.create_task(self.poll_all())
-        await StartAsyncTcpServer(context=self.context, address=("0.0.0.0", 502))
+        try:
+            self.running = True
+            logger.info("Starting Modbus server on port 502")
+            asyncio.create_task(self.poll_all())
+            await StartAsyncTcpServer(context=self.context, address=("0.0.0.0", 502))
+        except Exception as e:
+            logger.error(f"Server start error: {e}", exc_info=True)
+            raise
 
 gateway = ModbusGateway()
