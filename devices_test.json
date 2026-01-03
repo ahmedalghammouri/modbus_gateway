@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Simple Device 1",
+    "ip": "127.0.0.1",
+    "port": 5020,
+    "slave_id": 1,
+    "type": "simple",
+    "offset": 0
+  },
+  {
+    "name": "Power Meter 1",
+    "ip": "127.0.0.1",
+    "port": 5021,
+    "slave_id": 1,
+    "type": "pm",
+    "offset": 100
+  },
+  {
+    "name": "Simple Device 2",
+    "ip": "127.0.0.1",
+    "port": 5022,
+    "slave_id": 1,
+    "type": "simple",
+    "offset": 200
+  },
+  {
+    "name": "Power Meter 2",
+    "ip": "127.0.0.1",
+    "port": 5023,
+    "slave_id": 1,
+    "type": "pm",
+    "offset": 300
+  }
+]
