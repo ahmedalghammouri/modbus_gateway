@@ -12,6 +12,7 @@ A full-stack Modbus TCP gateway with real-time monitoring, automatic offset calc
 ✅ **Production Simulator** - Test with 33 simulated devices  
 ✅ **REST API** - Full CRUD operations  
 ✅ **Responsive UI** - Works on desktop, tablet, mobile  
+✅ **Windows Service** - Production-ready executable with installer  
 
 ## Architecture
 
@@ -30,7 +31,17 @@ A full-stack Modbus TCP gateway with real-time monitoring, automatic offset calc
 
 ## Quick Start
 
-### 1. Install Dependencies
+### Option 1: Windows Installer (Recommended)
+
+1. **Download** the latest `ModbusGatewaySetup.exe` from releases
+2. **Run installer** as Administrator
+3. **Start service** from Windows Services or:
+   ```cmd
+   net start "Modbus Gateway"
+   ```
+4. **Open browser** to http://localhost:8000
+
+### Option 2: Development Setup
 
 **Backend:**
 ```bash
@@ -58,14 +69,15 @@ cd backend
 python run.py
 ```
 
-### 4. Start Frontend
+### 4. Start Frontend (Development)
 ```bash
 cd frontend
 npm start
 ```
 
 ### 5. Open Browser
-http://localhost:3000
+- **Production**: http://localhost:8000 (built-in web interface)
+- **Development**: http://localhost:3000 (React dev server)
 
 ## Device Types
 
@@ -124,10 +136,28 @@ Device 4 (OEE)   → offset 31  (uses 31-34)
 
 ## Production Deployment
 
-### Windows Service (NSSM)
+### Windows Service (Recommended)
+
+**Using Installer:**
+1. Run `ModbusGatewaySetup.exe` as Administrator
+2. Service automatically starts on boot
+3. Manage via Windows Services or:
+   ```cmd
+   net start "Modbus Gateway"
+   net stop "Modbus Gateway"
+   ```
+
+**Manual Installation:**
 ```bash
-nssm install ModbusGateway "C:\Python\python.exe" "C:\path\to\backend\run.py"
-nssm start ModbusGateway
+# Build executable
+cd backend
+pyinstaller modbus_gateway.spec
+
+# Install as service using NSSM
+nssm install "Modbus Gateway" "C:\Program Files\Modbus Gateway\ModbusGateway.exe"
+nssm set "Modbus Gateway" DisplayName "Modbus Gateway Service"
+nssm set "Modbus Gateway" Description "Industrial Modbus TCP Gateway"
+nssm start "Modbus Gateway"
 ```
 
 ### Docker
@@ -140,6 +170,41 @@ docker-compose up -d
 sudo systemctl enable modbus-gateway
 sudo systemctl start modbus-gateway
 ```
+
+## Building from Source
+
+### Prerequisites
+- Python 3.12+
+- Node.js 18+
+- PyInstaller
+- NSIS (for Windows installer)
+
+### Build Steps
+
+1. **Install dependencies:**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   pip install pyinstaller
+   ```
+
+2. **Build frontend:**
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   ```
+
+3. **Build executable:**
+   ```bash
+   cd backend
+   pyinstaller modbus_gateway.spec
+   ```
+
+4. **Create installer (Windows):**
+   - Install NSIS from https://nsis.sourceforge.io/
+   - Right-click `installer.nsi` and select "Compile NSIS Script"
+   - Output: `ModbusGatewaySetup.exe`
 
 ## Configuration
 
@@ -161,19 +226,51 @@ SCAN_INTERVAL_SEC=1.0
 
 ## Troubleshooting
 
-**Gateway won't start:**
-- Check if port 502 is available (requires admin/root)
-- Verify Python dependencies installed
+**Service won't start:**
+- Check Windows Event Viewer for errors
+- Verify port 502 is available (requires admin privileges)
+- Check service logs in `C:\Program Files\Modbus Gateway\logs\`
+
+**Missing dependencies error:**
+- Ensure all Python packages are included in `modbus_gateway.spec`
+- Rebuild executable with updated dependencies
 
 **Devices offline:**
-- Check IP addresses and ports
-- Verify slave IDs match
-- Check network connectivity
+- Check IP addresses and ports in device configuration
+- Verify slave IDs match device settings
+- Check network connectivity and firewall rules
 
 **Frontend not loading:**
-- Verify backend is running on port 8000
+- Verify service is running and listening on port 8000
 - Check browser console for errors
-- Clear browser cache
+- Clear browser cache and cookies
+
+**Performance issues:**
+- Reduce polling interval in configuration
+- Check network latency to devices
+- Monitor system resources
+
+## File Structure
+
+```
+modbus_gateway/
+├── backend/
+│   ├── app/
+│   │   ├── api/routes.py      # REST API endpoints
+│   │   ├── core/gateway.py    # Modbus gateway logic
+│   │   ├── models/device.py   # Device data models
+│   │   └── main.py           # FastAPI application
+│   ├── dist/ModbusGateway/   # Built executable
+│   ├── modbus_gateway.spec   # PyInstaller configuration
+│   ├── requirements.txt      # Python dependencies
+│   └── run.py               # Application entry point
+├── frontend/
+│   ├── build/               # Production build
+│   ├── src/                 # React source code
+│   └── package.json         # Node.js dependencies
+├── installer.nsi            # NSIS installer script
+└── README.md               # This file
+```
 
 ## License
 

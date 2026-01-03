@@ -1,92 +1,355 @@
-# Windows Service Deployment Guide
+# Modbus Gateway - Deployment Guide
 
-## Build Executable (Development Machine)
+This guide covers production deployment of the Modbus Gateway as a Windows service.
 
-1. Install dependencies:
-```bash
-pip install pyinstaller
-```
+## Prerequisites
 
-2. Build executable:
-```cmd
-cd backend
-pyinstaller --clean modbus_gateway.spec
-```
+- Windows Server 2016+ or Windows 10+
 
-3. Download NSSM (Non-Sucking Service Manager):
-   - Get from: https://nssm.cc/download
-   - Extract `nssm.exe` (64-bit) to `backend/` folder
+- Administrator privileges
 
-4. Output: `dist/ModbusGateway/` folder with all files
+- Network access to Modbus devices
 
-## Deploy to Client (Option 1: Manual with NSSM)
+- Port 502 and 8000 available
 
-1. Copy `dist/ModbusGateway/` folder to client machine (e.g., `C:\ModbusGateway\`)
+## Installation Methods
 
-2. Download NSSM and copy `nssm.exe` to `C:\ModbusGateway\`
+### Method 1: Using Installer (Recommended)
 
-3. Install as Windows service (run as Administrator):
-```cmd
-cd C:\ModbusGateway
-nssm install ModbusGateway "%CD%\ModbusGateway.exe"
-nssm set ModbusGateway AppDirectory "%CD%"
-nssm set ModbusGateway DisplayName "Modbus Gateway"
-nssm set ModbusGateway Start SERVICE_AUTO_START
-nssm set ModbusGateway AppStdout "%CD%\logs\service_stdout.log"
-nssm set ModbusGateway AppStderr "%CD%\logs\service_stderr.log"
-sc start ModbusGateway
-```
+1. **Download** `ModbusGatewaySetup.exe` from releases
 
-4. Access UI: `http://localhost:8000`
+2. **Run as Administrator**
 
-## Deploy to Client (Option 2: Installer)
+3. **Follow installation wizard**
 
-1. Download NSSM and copy `nssm.exe` to `backend/` folder
+4. **Service starts automatically**
 
-2. Install NSIS: https://nsis.sourceforge.io/
+### Method 2: Manual Installation
 
-3. Build installer:
-   - Right-click `installer.nsi`
-   - Select "Compile NSIS Script"
+1. **Copy files** to `C:\Program Files\Modbus Gateway\`
 
-4. Run `ModbusGatewaySetup.exe` on client machine (as Administrator)
-
-5. Service auto-starts, access UI: `http://localhost:8000`
+2. **Install service** using NSSM:
+   ```cmd
+   nssm install "Modbus Gateway" "C:\Program Files\Modbus Gateway\ModbusGateway.exe"
+   nssm set "Modbus Gateway" DisplayName "Modbus Gateway Service"
+   nssm set "Modbus Gateway" Description "Industrial Modbus TCP Gateway"
+   nssm set "Modbus Gateway" Start SERVICE_AUTO_START
+   nssm start "Modbus Gateway"
+   ```
 
 ## Service Management
 
-Start: `sc start ModbusGateway` or `nssm start ModbusGateway`
-Stop: `sc stop ModbusGateway` or `nssm stop ModbusGateway`
-Restart: `nssm restart ModbusGateway`
-Status: `sc query ModbusGateway` or `nssm status ModbusGateway`
-Remove: `nssm remove ModbusGateway confirm`
+### Windows Services GUI
+
+1. Open **Services** (services.msc)
+
+2. Find **Modbus Gateway**
+
+3. Right-click → **Start/Stop/Restart**
+
+### Command Line
+
+```cmd
+# Start service
+net start "Modbus Gateway"
+
+# Stop service
+net stop "Modbus Gateway"
+
+# Check status
+sc query "Modbus Gateway"
+```
+
+### PowerShell
+
+```powershell
+# Start service
+Start-Service "Modbus Gateway"
+
+# Stop service
+Stop-Service "Modbus Gateway"
+
+# Get status
+Get-Service "Modbus Gateway"
+```
 
 ## Configuration
 
-Edit `devices.json` in installation folder, restart service.
+### Device Configuration
 
-## Firewall
+- Access web interface: http://localhost:8000
 
-Open port 8000 (Web UI + API) and port 502 (Modbus server).
+- Add devices via GUI or edit `devices.json`
+
+- Restart service after configuration changes
+
+### Network Configuration
+
+- **Port 502**: Modbus TCP server (requires admin privileges)
+
+- **Port 8000**: Web interface and API
+
+- Configure Windows Firewall if needed
+
+### Logging
+
+- Service logs: `C:\Program Files\Modbus Gateway\logs\`
+
+- Windows Event Viewer: Application logs
+
+- Log level can be configured in application
+
+## Security Considerations
+
+### Network Security
+
+- Restrict port 502 to trusted SCADA/MES systems
+
+- Use VPN or private network for device communication
+
+- Configure firewall rules for port 8000
+
+### Service Security
+
+- Service runs as Local System (default)
+
+- Consider running as dedicated service account
+
+- Limit file system permissions
+
+### Web Interface Security
+
+- Add authentication for production use
+
+- Use HTTPS with SSL certificate
+
+- Implement rate limiting
+
+- Regular security updates
+
+## Monitoring
+
+### Health Checks
+
+- Web interface: http://localhost:8000
+
+- API endpoint: http://localhost:8000/api/devices
+
+- Modbus connectivity: Test with Modbus client
+
+### Performance Monitoring
+
+- CPU usage (should be <5% normally)
+
+- Memory usage (typically 50-100MB)
+
+- Network traffic on ports 502 and 8000
+
+- Device response times
+
+### Alerting
+
+- Monitor service status
+
+- Check device connectivity
+
+- Monitor log files for errors
+
+- Set up automated notifications
+
+## Backup and Recovery
+
+### Backup Files
+
+- `devices.json` - Device configuration
+
+- `logs/` - Historical logs
+
+- Custom configuration files
+
+### Recovery Procedure
+
+1. Stop service
+
+2. Restore configuration files
+
+3. Start service
+
+4. Verify device connectivity
 
 ## Troubleshooting
 
-If service doesn't start:
-1. Check log files in `logs/` folder:
-   - `gateway_YYYYMMDD.log` - Application log
-   - `service_stdout.log` - Service output
-   - `service_stderr.log` - Service errors
-2. Run `ModbusGateway.exe` directly to see console output
-3. Check Event Viewer > Windows Logs > Application
-4. Check `nssm status ModbusGateway` for service status
-5. Ensure running as Administrator
-6. Verify port 502 and 8000 are not in use
+### Service Won't Start
 
-## Notes
+**Check Event Viewer:**
 
-- No Python installation required on client
-- Single executable with all dependencies
-- NSSM handles service wrapper (simpler than pywin32)
-- Runs as Windows service (auto-start on boot)
-- Web UI accessible from any browser on network
-- All errors logged to `logs/` folder
+1. Open Event Viewer
+
+2. Navigate to Windows Logs → Application
+
+3. Look for Modbus Gateway errors
+
+**Common Issues:**
+
+- Port 502 already in use
+
+- Missing dependencies
+
+- Insufficient privileges
+
+- Corrupted configuration
+
+**Solutions:**
+
+```cmd
+# Check port usage
+netstat -an | findstr :502
+
+# Run as administrator
+runas /user:Administrator "C:\Program Files\Modbus Gateway\ModbusGateway.exe"
+
+# Reset configuration
+del "C:\Program Files\Modbus Gateway\_internal\devices.json"
+```
+
+### Devices Offline
+
+**Network Connectivity:**
+
+```cmd
+# Test device connectivity
+ping 192.168.1.100
+telnet 192.168.1.100 502
+```
+
+**Configuration Issues:**
+
+- Verify IP addresses and ports
+
+- Check slave IDs
+
+- Validate device types
+
+- Test with Modbus client tool
+
+### Performance Issues
+
+**High CPU Usage:**
+
+- Reduce polling frequency
+
+- Check for network timeouts
+
+- Optimize device configuration
+
+**Memory Leaks:**
+
+- Restart service regularly
+
+- Monitor memory usage
+
+- Check for connection leaks
+
+**Slow Response:**
+
+- Check network latency
+
+- Reduce concurrent connections
+
+- Optimize Modbus parameters
+
+## Maintenance
+
+### Regular Tasks
+
+- Monitor service status daily
+
+- Check logs weekly
+
+- Backup configuration monthly
+
+- Update software quarterly
+
+### Log Rotation
+
+- Logs rotate automatically
+
+- Keep 30 days of history
+
+- Archive old logs if needed
+
+### Updates
+
+1. Stop service
+
+2. Backup current installation
+
+3. Install new version
+
+4. Restore configuration
+
+5. Start service
+
+6. Verify functionality
+
+## Integration
+
+### SCADA Systems
+
+- Connect to port 502 as Modbus TCP client
+
+- Use slave ID 1
+
+- Read holding registers starting from offset 0
+
+- Refer to device mapping documentation
+
+### MES Systems
+
+- Use REST API on port 8000
+
+- WebSocket for real-time data
+
+- JSON format for all responses
+
+- Authentication may be required
+
+### Third-party Tools
+
+- Modbus Poll/Slave for testing
+
+- Wireshark for network analysis
+
+- Performance counters for monitoring
+
+- Custom applications via API
+
+## Support
+
+### Documentation
+
+- README.md - General information
+
+- API documentation - REST endpoints
+
+- Device specifications - Modbus mappings
+
+### Logs and Diagnostics
+
+- Enable debug logging if needed
+
+- Collect network traces
+
+- Export device configuration
+
+- System information
+
+### Contact Information
+
+- GitHub Issues for bugs
+
+- Email support for enterprise
+
+- Community forum for questions
+
+- Professional services available
