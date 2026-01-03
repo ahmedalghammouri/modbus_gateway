@@ -1,0 +1,6 @@
+[
+  {"name":"Edge 1 PLC 1","ip":"127.0.0.1","port":5001,"slave_id":1,"type":"oee","offset":0},
+  {"name":"ETH1 PM1","ip":"127.0.0.1","port":5010,"slave_id":1,"type":"pm","offset":4},
+  {"name":"ETH1 PM2 Custom","ip":"127.0.0.1","port":5010,"slave_id":2,"type":"pm","offset":30,"pm_params":[["energy",3000],["volt_a",3010],["volt_b",3012],["volt_c",3014],["current_a",3020],["current_b",3022],["current_c",3024],["power",3030],["frequency",3040],["pf",3050],["temp",3060],["status",3070],["alarm",3080]]},
+  {"name":"ETH1 Scale 1","ip":"127.0.0.1","port":5010,"slave_id":3,"type":"scale","offset":56}
+]

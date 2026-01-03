@@ -5,11 +5,6 @@ from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.server import StartAsyncTcpServer
 from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
 
-PM_PARAMS = [("kwh", 2699, 0), ("v1", 3027, 2), ("v2", 3029, 4), ("v3", 3031, 6),
-             ("v12", 3019, 8), ("v23", 3021, 10), ("v13", 3023, 12), ("a1", 2999, 14),
-             ("a2", 3001, 16), ("a3", 3003, 18), ("a_avg", 3009, 20), ("freq_hz", 3109, 22),
-             ("p_total_kw", 3059, 24)]
-
 class ModbusGateway:
     def __init__(self):
         store = ModbusSlaveContext(hr=ModbusSequentialDataBlock(0, [0]*30000))
@@ -32,8 +27,9 @@ class ModbusGateway:
             client = AsyncModbusTcpClient(dev.ip, port=dev.port, timeout=5, retries=1)
             await client.connect()
             
+            pm_params = dev.get_pm_params()
             data = {}
-            for name, addr, rel in PM_PARAMS:
+            for name, addr, rel in pm_params:
                 rr = await client.read_holding_registers(addr, 2, slave=dev.slave_id)
                 if not rr.isError():
                     val = self.decode_float32(rr.registers)

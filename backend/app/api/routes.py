@@ -19,6 +19,11 @@ def calculate_offset(devices, device_type):
         return max_offset + DEVICE_SIZES[last_device.type]
     return 0
 
+@router.get("/pm-defaults")
+async def get_pm_defaults():
+    from app.models.device import DEFAULT_PM_PARAMS
+    return {"params": DEFAULT_PM_PARAMS}
+
 @router.get("/devices")
 async def get_devices():
     return gateway.devices

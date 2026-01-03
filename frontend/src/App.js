@@ -4,20 +4,19 @@ import DeviceManager from './components/DeviceManager';
 
 function App() {
   const [view, setView] = useState('dashboard');
-  const nav = { backgroundColor: '#1e40af', color: 'white', padding: '16px 20px', display: 'flex', justifyContent: 'space-between' };
-  const btn = (active) => ({ padding: '8px 16px', backgroundColor: active ? '#3b82f6' : 'transparent', 
-                              color: 'white', border: '1px solid white', borderRadius: '4px', cursor: 'pointer', marginLeft: '8px' });
 
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif' }}>
-      <nav style={nav}>
-        <h1 style={{ margin: 0 }}>Modbus Gateway</h1>
+    <div style={{ minHeight: '100vh', background: '#1a1a1a', color: '#e0e0e0' }}>
+      <nav style={{ background: '#2a2a2a', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #3a3a3a' }}>
+        <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Modbus Gateway</h1>
         <div>
-          <button onClick={() => setView('dashboard')} style={btn(view === 'dashboard')}>Dashboard</button>
-          <button onClick={() => setView('manager')} style={btn(view === 'manager')}>Devices</button>
+          <button onClick={() => setView('dashboard')} style={{ padding: '0.5rem 1rem', background: view === 'dashboard' ? '#4a90e2' : '#3a3a3a', color: 'white', border: 'none', borderRadius: '4px', marginRight: '0.5rem', cursor: 'pointer' }}>Dashboard</button>
+          <button onClick={() => setView('manager')} style={{ padding: '0.5rem 1rem', background: view === 'manager' ? '#4a90e2' : '#3a3a3a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Devices</button>
         </div>
       </nav>
-      {view === 'dashboard' ? <Dashboard /> : <DeviceManager />}
+      <div style={{ padding: '1.5rem' }}>
+        {view === 'dashboard' ? <Dashboard /> : <DeviceManager />}
+      </div>
     </div>
   );
 }
