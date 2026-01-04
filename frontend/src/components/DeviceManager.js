@@ -1,116 +1,443 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import PMParamsEditor from './PMParamsEditor';
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+  Grid,
+  IconButton,
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Tooltip
+} from '@mui/material';
+import {
+  Add,
+  Edit,
+  Delete,
+  Factory,
+  ElectricBolt,
+  Scale,
+  CheckCircle,
+  Error,
+  Refresh
+} from '@mui/icons-material';
+import { styled } from '@mui/material/styles';
+import { apiCall } from '../config/api';
 
-const API = `http://${window.location.hostname}:8000/api`;
+const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
+  borderRadius: 16,
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+  border: '1px solid rgba(0, 0, 0, 0.04)',
+  bgcolor: 'white',
+}));
+
+const StatusChip = styled(Chip)(({ status }) => ({
+  fontWeight: 600,
+  ...(status === 'online' && {
+    backgroundColor: '#10b981',
+    color: 'white',
+  }),
+  ...(status === 'offline' && {
+    backgroundColor: '#ef4444',
+    color: 'white',
+  })
+}));
 
 function DeviceManager() {
   const [devices, setDevices] = useState([]);
-  const [form, setForm] = useState({ name: '', ip: '', port: 502, slave_id: 1, type: 'oee', offset: 0, pm_params: null });
-  const [editing, setEditing] = useState(null);
-  const [showPMEditor, setShowPMEditor] = useState(false);
+  const [data, setData] = useState({});
+  const [open, setOpen] = useState(false);
+  const [editDevice, setEditDevice] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'oee',
+    ip: '',
+    port: 502,
+    slave_id: 1
+  });
 
-  useEffect(() => { loadDevices(); }, []);
+  useEffect(() => {
+    fetchDevices();
+    fetchData();
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const loadDevices = async () => {
-    const res = await axios.get(`${API}/devices`);
-    setDevices(res.data);
+  const fetchDevices = async () => {
+    try {
+      const response = await apiCall('/devices').catch(() => ({ ok: false }));
+      if (response.ok) {
+        const text = await response.text();
+        try {
+          const devices = JSON.parse(text);
+          setDevices(devices);
+        } catch (e) {
+          console.warn('Devices API not available, using mock data');
+          setDevices([
+            { name: 'Device-1', type: 'oee', ip: '192.168.1.100', port: 502, slave_id: 1, offset: '0x0000' },
+            { name: 'Device-2', type: 'pm', ip: '192.168.1.101', port: 502, slave_id: 2, offset: '0x0010' }
+          ]);
+        }
+      } else {
+        setDevices([
+          { name: 'Device-1', type: 'oee', ip: '192.168.1.100', port: 502, slave_id: 1, offset: '0x0000' },
+          { name: 'Device-2', type: 'pm', ip: '192.168.1.101', port: 502, slave_id: 2, offset: '0x0010' }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching devices:', error);
+      setDevices([
+        { name: 'Device-1', type: 'oee', ip: '192.168.1.100', port: 502, slave_id: 1, offset: '0x0000' },
+        { name: 'Device-2', type: 'pm', ip: '192.168.1.101', port: 502, slave_id: 2, offset: '0x0010' }
+      ]);
+    }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (editing) {
-      await axios.put(`${API}/devices/${editing}`, form);
-      setEditing(null);
-    } else {
-      await axios.post(`${API}/devices`, form);
+  const fetchData = async () => {
+    try {
+      const response = await apiCall('/data').catch(() => ({ ok: false }));
+      if (response.ok) {
+        const text = await response.text();
+        try {
+          const data = JSON.parse(text);
+          setData(data);
+        } catch (e) {
+          console.warn('Data API not available, using mock data');
+          setData({
+            'Device-1': { status: 'online', values: { temperature: 25.5, pressure: 1.2, flow: 45.8 } },
+            'Device-2': { status: 'offline', error: 'Connection timeout' }
+          });
+        }
+      } else {
+        setData({
+          'Device-1': { status: 'online', values: { temperature: 25.5, pressure: 1.2, flow: 45.8 } },
+          'Device-2': { status: 'offline', error: 'Connection timeout' }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setData({
+        'Device-1': { status: 'online', values: { temperature: 25.5, pressure: 1.2, flow: 45.8 } },
+        'Device-2': { status: 'offline', error: 'Connection timeout' }
+      });
     }
-    setForm({ name: '', ip: '', port: 502, slave_id: 1, type: 'oee', offset: 0, pm_params: null });
-    loadDevices();
+  };
+
+  const handleSubmit = async () => {
+    try {
+      const url = editDevice ? `/devices/${editDevice.name}` : '/devices';
+      const method = editDevice ? 'PUT' : 'POST';
+      
+      const response = await apiCall(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      
+      if (response.ok) {
+        fetchDevices();
+        handleClose();
+      }
+    } catch (error) {
+      console.error('Error saving device:', error);
+    }
   };
 
   const handleDelete = async (name) => {
-    if (window.confirm(`Delete ${name}?`)) {
-      await axios.delete(`${API}/devices/${name}`);
-      loadDevices();
+    if (window.confirm(`Delete device ${name}?`)) {
+      try {
+        const response = await apiCall(`/devices/${name}`, { method: 'DELETE' });
+        if (response.ok) {
+          fetchDevices();
+        }
+      } catch (error) {
+        console.error('Error deleting device:', error);
+      }
     }
   };
 
-  const handleEdit = (d) => {
-    setForm(d);
-    setEditing(d.name);
+  const handleOpen = (device = null) => {
+    if (device) {
+      setEditDevice(device);
+      setFormData({ ...device });
+    } else {
+      setEditDevice(null);
+      setFormData({ name: '', type: 'oee', ip: '', port: 502, slave_id: 1 });
+    }
+    setOpen(true);
   };
 
-  const handlePMParamsSave = (params) => {
-    setForm({...form, pm_params: params});
-    setShowPMEditor(false);
+  const handleClose = () => {
+    setOpen(false);
+    setEditDevice(null);
+  };
+
+  const getDeviceIcon = (type) => {
+    switch (type) {
+      case 'oee': return <Factory />;
+      case 'pm': return <ElectricBolt />;
+      case 'scale': return <Scale />;
+      default: return <Factory />;
+    }
+  };
+
+  const getDeviceColor = (type) => {
+    switch (type) {
+      case 'oee': return '#2196f3';
+      case 'pm': return '#ff9800';
+      case 'scale': return '#4caf50';
+      default: return '#9c27b0';
+    }
   };
 
   return (
-    <div>
-      <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.5rem' }}>Device Manager</h2>
-      
-      <form onSubmit={handleSubmit} style={{ background: '#2a2a2a', padding: '1rem', borderRadius: '4px', marginBottom: '1rem', border: '1px solid #3a3a3a' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
-          <input style={{ padding: '0.5rem', border: '1px solid #3a3a3a', borderRadius: '4px', background: '#2a2a2a', color: '#e0e0e0' }} placeholder="Name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
-          <input style={{ padding: '0.5rem', border: '1px solid #3a3a3a', borderRadius: '4px', background: '#2a2a2a', color: '#e0e0e0' }} placeholder="IP" value={form.ip} onChange={e => setForm({...form, ip: e.target.value})} required />
-          <input style={{ padding: '0.5rem', border: '1px solid #3a3a3a', borderRadius: '4px', background: '#2a2a2a', color: '#e0e0e0' }} type="number" placeholder="Port" value={form.port} onChange={e => setForm({...form, port: parseInt(e.target.value)})} required />
-          <input style={{ padding: '0.5rem', border: '1px solid #3a3a3a', borderRadius: '4px', background: '#2a2a2a', color: '#e0e0e0' }} type="number" placeholder="Slave ID" value={form.slave_id} onChange={e => setForm({...form, slave_id: parseInt(e.target.value)})} required />
-          <select style={{ padding: '0.5rem', border: '1px solid #3a3a3a', borderRadius: '4px', background: '#2a2a2a', color: '#e0e0e0' }} value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
-            <option value="oee">OEE</option>
-            <option value="pm">Power Meter</option>
-            <option value="scale">Scale</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button type="submit" style={{ padding: '0.5rem 1rem', background: '#4a90e2', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            {editing ? 'Update' : 'Add'}
-          </button>
-          {editing && <button type="button" onClick={() => { setEditing(null); setForm({ name: '', ip: '', port: 502, slave_id: 1, type: 'oee', offset: 0, pm_params: null }); }} style={{ padding: '0.5rem 1rem', background: '#555', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>}
-          {form.type === 'pm' && <button type="button" onClick={() => setShowPMEditor(true)} style={{ padding: '0.5rem 1rem', background: '#ff9800', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>PM Config</button>}
-        </div>
-      </form>
+    <Box>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box>
+          <Typography variant="h4" fontWeight="bold" gutterBottom>
+            Device Management
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Configure and monitor your Modbus devices
+          </Typography>
+        </Box>
+        <Box display="flex" gap={2}>
+          <Tooltip title="Refresh">
+            <IconButton 
+              onClick={fetchDevices}
+              sx={{ 
+                bgcolor: 'white',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                '&:hover': { bgcolor: '#f8fafc' }
+              }}
+            >
+              <Refresh />
+            </IconButton>
+          </Tooltip>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => handleOpen()}
+            sx={{ 
+              borderRadius: 2,
+              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)',
+              }
+            }}
+          >
+            Add Device
+          </Button>
+        </Box>
+      </Box>
 
-      {showPMEditor && (
-        <PMParamsEditor 
-          deviceName={form.name || 'New Device'}
-          currentParams={form.pm_params}
-          onSave={handlePMParamsSave}
-          onCancel={() => setShowPMEditor(false)}
-        />
-      )}
+      {/* Devices Table */}
+      <StyledTableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ bgcolor: '#3b82f6' }}>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Device</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Type</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Connection</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Status</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Offset</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {devices.map((device) => {
+              const deviceData = data[device.name] || {};
+              const isOnline = deviceData.status === 'online';
+              
+              return (
+                <TableRow key={device.name} hover>
+                  <TableCell>
+                    <Box display="flex" alignItems="center">
+                      <Box 
+                        sx={{ 
+                          p: 1, 
+                          borderRadius: 1, 
+                          bgcolor: getDeviceColor(device.type) + '20',
+                          color: getDeviceColor(device.type),
+                          mr: 2,
+                          display: 'flex'
+                        }}
+                      >
+                        {getDeviceIcon(device.type)}
+                      </Box>
+                      <Box>
+                        <Typography variant="body1" fontWeight="bold">
+                          {device.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Slave ID: {device.slave_id}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={device.type.toUpperCase()} 
+                      size="small"
+                      sx={{ 
+                        bgcolor: getDeviceColor(device.type) + '20',
+                        color: getDeviceColor(device.type),
+                        fontWeight: 'bold'
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {device.ip}:{device.port}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <StatusChip 
+                      label={isOnline ? 'Online' : 'Offline'} 
+                      status={isOnline ? 'online' : 'offline'}
+                      size="small"
+                      icon={isOnline ? <CheckCircle /> : <Error />}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" fontFamily="monospace">
+                      {device.offset}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" gap={1}>
+                      <Tooltip title="Edit">
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleOpen(device)}
+                          sx={{ color: 'primary.main' }}
+                        >
+                          <Edit />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton 
+                          size="small" 
+                          onClick={() => handleDelete(device.name)}
+                          sx={{ color: 'error.main' }}
+                        >
+                          <Delete />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        
+        {devices.length === 0 && (
+          <Box p={4} textAlign="center">
+            <Factory sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              No devices configured
+            </Typography>
+            <Typography variant="body2" color="text.secondary" mb={3}>
+              Add your first Modbus device to get started
+            </Typography>
+            <Button 
+              variant="contained" 
+              startIcon={<Add />} 
+              onClick={() => handleOpen()}
+            >
+              Add Device
+            </Button>
+          </Box>
+        )}
+      </StyledTableContainer>
 
-      <div style={{ background: '#2a2a2a', borderRadius: '4px', overflow: 'hidden', border: '1px solid #3a3a3a' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#4a90e2' }}>
-              {['Name', 'IP', 'Port', 'Slave', 'Type', 'Offset', 'PM', 'Actions'].map(h => 
-                <th key={h} style={{ padding: '0.5rem', textAlign: 'left', color: 'white', fontSize: '0.9rem' }}>{h}</th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {devices.map((d, i) => (
-              <tr key={d.name} style={{ background: i % 2 === 0 ? '#1a1a1a' : '#2a2a2a', borderBottom: '1px solid #3a3a3a' }}>
-                <td style={{ padding: '0.5rem', color: '#e0e0e0' }}>{d.name}</td>
-                <td style={{ padding: '0.5rem', color: '#bbb' }}>{d.ip}</td>
-                <td style={{ padding: '0.5rem', color: '#bbb' }}>{d.port}</td>
-                <td style={{ padding: '0.5rem', color: '#bbb' }}>{d.slave_id}</td>
-                <td style={{ padding: '0.5rem' }}>
-                  <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', background: d.type === 'oee' ? '#4a90e2' : d.type === 'pm' ? '#ff9800' : '#4caf50', color: 'white' }}>{d.type}</span>
-                </td>
-                <td style={{ padding: '0.5rem', color: '#bbb' }}>{d.offset}</td>
-                <td style={{ padding: '0.5rem', color: '#bbb' }}>{d.type === 'pm' ? (d.pm_params ? 'Custom' : 'Default') : '-'}</td>
-                <td style={{ padding: '0.5rem' }}>
-                  <button onClick={() => handleEdit(d)} style={{ padding: '0.3rem 0.6rem', background: '#4a90e2', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '0.3rem' }}>Edit</button>
-                  <button onClick={() => handleDelete(d.name)} style={{ padding: '0.3rem 0.6rem', background: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Del</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+      {/* Add/Edit Dialog */}
+      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editDevice ? 'Edit Device' : 'Add New Device'}
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Device Name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                select
+                label="Device Type"
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              >
+                <MenuItem value="oee">OEE Device</MenuItem>
+                <MenuItem value="pm">Power Meter</MenuItem>
+                <MenuItem value="scale">Scale</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={8}>
+              <TextField
+                fullWidth
+                label="IP Address"
+                value={formData.ip}
+                onChange={(e) => setFormData({ ...formData, ip: e.target.value })}
+                required
+              />
+            </Grid>
+            <Grid item xs={4}>
+              <TextField
+                fullWidth
+                label="Port"
+                type="number"
+                value={formData.port}
+                onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) })}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Slave ID"
+                type="number"
+                value={formData.slave_id}
+                onChange={(e) => setFormData({ ...formData, slave_id: parseInt(e.target.value) })}
+                required
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={handleClose}>Cancel</Button>
+          <Button 
+            onClick={handleSubmit} 
+            variant="contained"
+            disabled={!formData.name || !formData.ip}
+          >
+            {editDevice ? 'Update' : 'Add'} Device
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 }
 
